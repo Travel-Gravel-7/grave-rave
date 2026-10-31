@@ -34,6 +34,21 @@ footer{text-align:center;color:#777;padding:8px 16px 28px;font:italic 12px Georg
 <body>
 <header><div class="brand">GRAVEX INKLAB</div><div class="sub">GRAVEX STUDIOS · DARK ART / PRECISION STENCILS</div></header>
 <main>
+<section class="panel" style="grid-column:1/-1">
+<h2>00 / YOUR INKLAB ACCOUNT</h2>
+<div class="controls">
+<div class="field"><label>EMAIL</label><input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com" style="width:100%;background:#0d0d0e;border:1px solid #51421f;border-radius:9px;padding:11px;color:#eee"></div>
+<div class="field"><label>PASSWORD</label><input id="accountPassword" type="password" autocomplete="current-password" placeholder="At least 8 characters" style="width:100%;background:#0d0d0e;border:1px solid #51421f;border-radius:9px;padding:11px;color:#eee"></div>
+</div>
+<div class="controls"><button id="signIn">SIGN IN</button><button id="signUp">CREATE FREE ACCOUNT</button><button id="signOut" disabled>SIGN OUT</button></div>
+<div class="status" id="accountStatus">Local stencil tools work without an account. Sign in to save project settings.</div>
+<div class="controls">
+<div class="field"><label>PROJECT NAME</label><input id="projectName" value="Untitled project" maxlength="80" style="width:100%;background:#0d0d0e;border:1px solid #51421f;border-radius:9px;padding:11px;color:#eee"></div>
+<div class="field"><label>SAVED PROJECTS</label><select id="savedProjects" style="width:100%"><option value="">Sign in to load projects</option></select></div>
+</div>
+<div class="controls"><button id="saveProject" disabled>SAVE SETTINGS</button><button id="loadProject" disabled>LOAD SELECTED</button></div>
+<p class="note">Your artwork remains on this device. Saved projects store only project names, notes and stencil settings — not your uploaded image. Account tier: <strong id="planLabel">Free</strong>.</p>
+</section>
 <section class="panel">
 <h2>01 / SOURCE ART</h2>
 <label class="drop" id="drop"><strong>＋ DROP YOUR ARTWORK</strong><span class="hint">Tap to choose a picture · JPG, PNG, WEBP</span><input id="file" type="file" accept="image/*"></label>
@@ -58,6 +73,7 @@ footer{text-align:center;color:#777;padding:8px 16px 28px;font:italic 12px Georg
 </section>
 </main>
 <footer>GRAVEX INKLAB · FREE LOCAL-FIRST STARTER · YOUR ART STAYS ON THIS DEVICE</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const $=id=>document.getElementById(id);
 let source=null, mirrored=false;
@@ -113,5 +129,37 @@ $('print').onclick=()=>{
  w.document.write('<!doctype html><html><head><title>GraveX InkLab stencil</title><style>@page{margin:0}html,body{margin:0;padding:0;background:white}img{display:block;max-width:100%;max-height:100vh;margin:auto;object-fit:contain}</style></head><body><img src="'+data+'" onload="setTimeout(()=>window.print(),250)"></body></html>');
  w.document.close();say('Print window opened. Check actual-size settings before printing.');
 };
+
+const INKLAB_SUPABASE_URL='https://vhditxhtzcvbeilthskw.supabase.co';
+const INKLAB_SUPABASE_KEY='sb_publishable_4ZkqnkT6eVpQlZW8PILTBA_moyOy0iq';
+const inkClient=window.supabase.createClient(INKLAB_SUPABASE_URL,INKLAB_SUPABASE_KEY);
+let inkUser=null, inkPlan='free';
+function accountSay(message){$('accountStatus').textContent=message}
+async function refreshSavedProjects(){
+ if(!inkUser){$('savedProjects').innerHTML='<option value="">Sign in to load projects</option>';return}
+ const {data,error}=await inkClient.from('inklab_projects').select('id,name,updated_at').order('updated_at',{ascending:false}).limit(50);
+ if(error){accountSay('Could not load projects: '+error.message);return}
+ $('savedProjects').innerHTML='<option value="">Choose a saved project</option>';
+ (data||[]).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$('savedProjects').appendChild(o)});
+}
+async function applyAuthSession(session){
+ inkUser=session?.user||null;
+ $('signOut').disabled=!inkUser;$('saveProject').disabled=!inkUser;$('loadProject').disabled=!inkUser;
+ $('signIn').disabled=!!inkUser;$('signUp').disabled=!!inkUser;
+ if(!inkUser){inkPlan='free';$('planLabel').textContent='Free';accountSay('Local stencil tools work without an account. Sign in to save project settings.');await refreshSavedProjects();return}
+ const {data:ent}=await inkClient.from('inklab_entitlements').select('plan,status').eq('user_id',inkUser.id).maybeSingle();
+ inkPlan=(ent?.plan==='premium'&&['active','trialing'].includes(ent?.status))?'premium':'free';
+ $('planLabel').textContent=inkPlan==='premium'?'Premium':'Free';
+ accountSay('Signed in as '+inkUser.email+'. Your projects are private to your account.');
+ await refreshSavedProjects();
+}
+$('signUp').onclick=async()=>{const email=$('accountEmail').value.trim(),password=$('accountPassword').value;if(!email||password.length<8){accountSay('Enter a valid email and a password of at least 8 characters.');return}const {data,error}=await inkClient.auth.signUp({email,password});if(error){accountSay(error.message);return}if(data.session)await applyAuthSession(data.session);else accountSay('Check your email to confirm your account, then sign in.')};
+$('signIn').onclick=async()=>{const {data,error}=await inkClient.auth.signInWithPassword({email:$('accountEmail').value.trim(),password:$('accountPassword').value});if(error){accountSay(error.message);return}await applyAuthSession(data.session)};
+$('signOut').onclick=async()=>{const {error}=await inkClient.auth.signOut();if(error){accountSay(error.message);return}await applyAuthSession(null)};
+$('saveProject').onclick=async()=>{if(!inkUser){accountSay('Sign in first.');return}const payload={user_id:inkUser.id,name:$('projectName').value.trim()||'Untitled project',notes:$('idea').value,output_style:$('style').value,settings:{threshold:+$('threshold').value,detail:+$('detail').value,invert:$('invert').value}};const {error}=await inkClient.from('inklab_projects').insert(payload);if(error){accountSay('Save failed: '+error.message);return}accountSay('Project settings saved. Your image was not uploaded.');await refreshSavedProjects()};
+$('loadProject').onclick=async()=>{const id=$('savedProjects').value;if(!id){accountSay('Choose a saved project first.');return}const {data,error}=await inkClient.from('inklab_projects').select('*').eq('id',id).single();if(error){accountSay('Load failed: '+error.message);return}$('projectName').value=data.name;$('idea').value=data.notes||'';$('style').value=data.output_style||'edges';$('threshold').value=data.settings?.threshold??145;$('thval').value=$('threshold').value;$('detail').value=data.settings?.detail??2;$('deval').value=$('detail').value;$('invert').value=data.settings?.invert??'no';if(source)forge();accountSay('Project settings loaded. Upload the source image again to recreate its preview.')};
+inkClient.auth.getSession().then(({data})=>applyAuthSession(data.session));
+inkClient.auth.onAuthStateChange((_event,session)=>{if(session?.user?.id!==inkUser?.id)applyAuthSession(session)});
+
 </script>
 </body></html>
