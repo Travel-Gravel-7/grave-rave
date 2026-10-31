@@ -49,3 +49,26 @@ The applied database migration is recorded at `supabase/migrations/2026103101020
 ## Deployment
 
 GitHub Pages publishes the static frontend from the repository's main branch. Supabase handles account authentication and project metadata. Stripe backend functions and secrets must be configured before paid subscriptions can be enabled.
+
+## Billing deployment checklist
+
+The following Edge Functions are deployed under the InkLab-only names:
+- `inklab-create-checkout` — authenticated Stripe subscription Checkout.
+- `inklab-customer-portal` — authenticated Stripe Customer Portal session.
+- `inklab-stripe-webhook` — public endpoint with Stripe signature verification.
+
+Before enabling checkout, configure these Edge Function secrets in Supabase:
+- `STRIPE_SECRET_KEY` — use a restricted Stripe key with only the permissions required for customers, Checkout Sessions, subscriptions, and billing portal sessions; start with test mode.
+- `STRIPE_PRICE_ID` — the Stripe Price ID for the $3.99 USD monthly Premium subscription.
+- `STRIPE_WEBHOOK_SECRET` — signing secret for the InkLab webhook endpoint.
+- `APP_URL` — `https://travel-gravel-7.github.io/grave-rave` (no trailing slash).
+
+Supabase supplies its project URL and server API keys to Edge Functions. Never place a service-role key, Stripe key, or webhook secret in GitHub or browser code.
+
+Configure the Stripe webhook destination as:
+`https://vhditxhtzcvbeilthskw.supabase.co/functions/v1/inklab-stripe-webhook`
+
+Subscribe only to the lifecycle events currently handled by this first implementation:
+`checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`.
+
+**Not launch-ready yet:** no Stripe Product/Price has been created, no Edge Function secrets have been configured, and no checkout or webhook test has been completed. Before production billing, extend webhook handling for refunds, disputes, and early fraud warnings; verify tax registrations/settings; test renewal, cancellation, failed payment, and refund flows; then obtain explicit approval before switching to live billing.
