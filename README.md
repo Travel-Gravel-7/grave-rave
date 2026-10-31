@@ -30,7 +30,7 @@ Namespaced tables:
 
 All tables have Row Level Security enabled. Profile and free-tier entitlement records are created by a private-schema auth trigger. Project rows are restricted to their owner. Entitlements can be read by their owner but only trusted backend code may update them. Usage writes are reserved for backend code.
 
-The applied database migration is recorded at `supabase/migrations/20261031010204_inklab_backend_foundation.sql`.
+The applied database migrations are recorded under `supabase/migrations/`: `20261031010204_inklab_backend_foundation.sql`, `20261031010205_inklab_stripe_event_idempotency.sql`, and `20261031010206_inklab_stripe_event_service_policy.sql`.
 
 ## Planned subscription model
 
