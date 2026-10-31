@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0b0b0c">
-<title>GRAVEX INKFORGE</title>
+<meta name="description" content="GraveX InkLab — a free, local-first tattoo stencil workspace. Convert artwork into stencil and grey-wash references on your device.">
+<title>GraveX InkLab</title>
 <style>
 :root{--gold:#dfb94f;--gold2:#f4dc91;--bg:#0b0b0c;--panel:#151516;--line:#57451e;--muted:#a8a39a}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#282116 0,#0b0b0c 48%);color:#eee;font:15px system-ui,Segoe UI,sans-serif;min-height:100vh}
@@ -31,7 +32,7 @@ footer{text-align:center;color:#777;padding:8px 16px 28px;font:italic 12px Georg
 </style>
 </head>
 <body>
-<header><div class="brand">𝕴𝕹𝕶𝕱𝕺𝕽𝕲𝕰</div><div class="sub">GRAVEX STUDIOS · DARK ART / PRECISION STENCILS</div></header>
+<header><div class="brand">GRAVEX INKLAB</div><div class="sub">GRAVEX STUDIOS · DARK ART / PRECISION STENCILS</div></header>
 <main>
 <section class="panel">
 <h2>01 / SOURCE ART</h2>
@@ -56,7 +57,7 @@ footer{text-align:center;color:#777;padding:8px 16px 28px;font:italic 12px Georg
 <p class="note">For thermal transfer, use a tattoo-stencil printer and compatible transfer paper. For best sizing, print at 100% / actual size and disable page scaling. Ordinary receipt printers and paper may not produce usable tattoo transfers.</p>
 </section>
 </main>
-<footer>GRAVEX INKFORGE · FREE LOCAL-FIRST STARTER · YOUR ART STAYS ON THIS DEVICE</footer>
+<footer>GRAVEX INKLAB · FREE LOCAL-FIRST STARTER · YOUR ART STAYS ON THIS DEVICE</footer>
 <script>
 const $=id=>document.getElementById(id);
 let source=null, mirrored=false;
@@ -104,12 +105,12 @@ $('threshold').oninput=e=>$('thval').value=e.target.value;
 $('detail').oninput=e=>$('deval').value=e.target.value;
 ['threshold','detail','style','invert'].forEach(id=>$(id).addEventListener('change',forge));
 $('reset').onclick=()=>{ $('style').value='edges';$('invert').value='no';$('threshold').value=145;$('thval').value=145;$('detail').value=2;$('deval').value=2;forge(); };
-$('download').onclick=()=>{const a=document.createElement('a');a.download='gravex-inkforge-stencil.png';a.href=canvas.toDataURL('image/png');a.click()};
+$('download').onclick=()=>{const a=document.createElement('a');a.download='gravex-inklab-stencil.png';a.href=canvas.toDataURL('image/png');a.click()};
 $('mirror').onclick=()=>{const temp=document.createElement('canvas');temp.width=canvas.width;temp.height=canvas.height;const tctx=temp.getContext('2d');tctx.translate(temp.width,0);tctx.scale(-1,1);tctx.drawImage(canvas,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(temp,0,0);mirrored=!mirrored;$('mirror').textContent=mirrored?'UNMIRROR':'MIRROR FOR TRANSFER';say(mirrored?'Mirrored for transfer.':'Mirror reversed.')};
 $('print').onclick=()=>{
  const data=canvas.toDataURL('image/png'),w=window.open('','_blank');
  if(!w){say('Allow pop-ups to print the stencil.');return}
- w.document.write('<!doctype html><html><head><title>Inkforge stencil</title><style>@page{margin:0}html,body{margin:0;padding:0;background:white}img{display:block;max-width:100%;max-height:100vh;margin:auto;object-fit:contain}</style></head><body><img src="'+data+'" onload="setTimeout(()=>window.print(),250)"></body></html>');
+ w.document.write('<!doctype html><html><head><title>GraveX InkLab stencil</title><style>@page{margin:0}html,body{margin:0;padding:0;background:white}img{display:block;max-width:100%;max-height:100vh;margin:auto;object-fit:contain}</style></head><body><img src="'+data+'" onload="setTimeout(()=>window.print(),250)"></body></html>');
  w.document.close();say('Print window opened. Check actual-size settings before printing.');
 };
 </script>
