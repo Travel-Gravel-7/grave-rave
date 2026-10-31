@@ -152,9 +152,12 @@ async function applyAuthSession(session){
  const {data:ent}=await inkClient.from('inklab_entitlements').select('plan,status').eq('user_id',inkUser.id).maybeSingle();
  inkPlan=(ent?.plan==='premium'&&['active','trialing'].includes(ent?.status))?'premium':'free';
  $('planLabel').textContent=inkPlan==='premium'?'Premium':'Free';
+ $('manageBilling').disabled=inkPlan!=='premium';$('upgradePremium').disabled=inkPlan==='premium';
  accountSay('Signed in as '+inkUser.email+'. Your projects are private to your account.');
  await refreshSavedProjects();
 }
+$('upgradePremium').onclick=async()=>{accountSay('Opening secure Stripe Checkout…');const {data,error}=await inkClient.functions.invoke('inklab-create-checkout',{body:{}});if(error){accountSay(error.message||'Billing is not configured yet.');return}if(data?.url)window.location.assign(data.url);else accountSay(data?.error||'Checkout is not available yet.')};
+$('manageBilling').onclick=async()=>{accountSay('Opening subscription management…');const {data,error}=await inkClient.functions.invoke('inklab-customer-portal',{body:{}});if(error){accountSay(error.message||'Billing portal is not configured yet.');return}if(data?.url)window.location.assign(data.url);else accountSay(data?.error||'Billing portal is unavailable.')};
 $('signUp').onclick=async()=>{const email=$('accountEmail').value.trim(),password=$('accountPassword').value;if(!email||password.length<8){accountSay('Enter a valid email and a password of at least 8 characters.');return}const {data,error}=await inkClient.auth.signUp({email,password});if(error){accountSay(error.message);return}if(data.session)await applyAuthSession(data.session);else accountSay('Check your email to confirm your account, then sign in.')};
 $('signIn').onclick=async()=>{const {data,error}=await inkClient.auth.signInWithPassword({email:$('accountEmail').value.trim(),password:$('accountPassword').value});if(error){accountSay(error.message);return}await applyAuthSession(data.session)};
 $('signOut').onclick=async()=>{const {error}=await inkClient.auth.signOut();if(error){accountSay(error.message);return}await applyAuthSession(null)};
