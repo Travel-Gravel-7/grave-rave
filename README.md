@@ -72,3 +72,14 @@ Subscribe only to the lifecycle events currently handled by this first implement
 `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`.
 
 **Not launch-ready yet:** no Stripe Product/Price has been created, no Edge Function secrets have been configured, and no checkout or webhook test has been completed. Before production billing, extend webhook handling for refunds, disputes, and early fraud warnings; verify tax registrations/settings; test renewal, cancellation, failed payment, and refund flows; then obtain explicit approval before switching to live billing.
+
+
+## Plans
+
+- **Free:** unlimited single-image stencil conversion, local PNG export/printing, and up to 3 saved cloud project-setting records. Source artwork is processed in the browser and is not uploaded.
+- **InkLab Premium — $3.99/month:** unlimited saved projects and Batch Forge, which processes up to 25 selected images locally and packages the resulting PNG stencils into one ZIP. Batch source images remain on the user's device.
+- Subscription access is synchronized by the dedicated `inklab-stripe-webhook` Edge Function. The three InkLab Edge Functions are separate from Pokediction billing functions.
+
+## Live billing launch checklist
+
+Before accepting subscribers, configure these Supabase Edge Function secrets in the project dashboard: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`, and `APP_URL`. The live Stripe product/price and webhook endpoint are provisioned, but do not announce billing until secrets are installed and a real end-to-end checkout, entitlement, cancellation, renewal, and failed-payment test has passed.
