@@ -1,0 +1,23 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+const cors = { "Access-Control-Allow-Origin": Deno.env.get("APP_URL") ?? "https://travel-gravel-7.github.io", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", "Content-Type": "application/json" };
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const url = Deno.env.get("SUPABASE_URL"), anon = Deno.env.get("SUPABASE_ANON_KEY"), service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), stripe = Deno.env.get("STRIPE_SECRET_KEY"), app = Deno.env.get("APP_URL");
+  if (!url || !anon || !service || !stripe || !app) return json({ error: "Billing is not configured yet." }, 503);
+  const authorization = req.headers.get("Authorization");
+  if (!authorization?.startsWith("Bearer ")) return json({ error: "Sign in required" }, 401);
+  const userClient = createClient(url, anon, { global: { headers: { Authorization: authorization } } });
+  const { data, error } = await userClient.auth.getUser();
+  if (error || !data.user) return json({ error: "Invalid or expired session" }, 401);
+  const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: ent, error: entError } = await admin.from("inklab_entitlements").select("stripe_customer_id").eq("user_id", data.user.id).maybeSingle();
+  if (entError || !ent?.stripe_customer_id) return json({ error: "No billing customer is attached to this account." }, 404);
+  const body = new URLSearchParams({ customer: ent.stripe_customer_id, return_url: app + "/" });
+  const response = await fetch("https://api.stripe.com/v1/billing_portal/sessions", { method: "POST", headers: { Authorization: `Bearer ${stripe}`, "Content-Type": "application/x-www-form-urlencoded", "Stripe-Version": "2026-09-30.endive" }, body });
+  const session = await response.json();
+  if (!response.ok || !session.url) return json({ error: "Could not open subscription management." }, 502);
+  return json({ url: session.url });
+});
