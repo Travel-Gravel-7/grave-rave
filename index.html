@@ -164,7 +164,7 @@ $('signOut').onclick=async()=>{const {error}=await inkClient.auth.signOut();if(e
 $('saveProject').onclick=async()=>{if(!inkUser){accountSay('Sign in first.');return}const payload={user_id:inkUser.id,name:$('projectName').value.trim()||'Untitled project',notes:$('idea').value,output_style:$('style').value,settings:{threshold:+$('threshold').value,detail:+$('detail').value,invert:$('invert').value}};const {error}=await inkClient.from('inklab_projects').insert(payload);if(error){accountSay('Save failed: '+error.message);return}accountSay('Project settings saved. Your image was not uploaded.');await refreshSavedProjects()};
 $('loadProject').onclick=async()=>{const id=$('savedProjects').value;if(!id){accountSay('Choose a saved project first.');return}const {data,error}=await inkClient.from('inklab_projects').select('*').eq('id',id).single();if(error){accountSay('Load failed: '+error.message);return}$('projectName').value=data.name;$('idea').value=data.notes||'';$('style').value=data.output_style||'edges';$('threshold').value=data.settings?.threshold??145;$('thval').value=$('threshold').value;$('detail').value=data.settings?.detail??2;$('deval').value=$('detail').value;$('invert').value=data.settings?.invert??'no';if(source)forge();accountSay('Project settings loaded. Upload the source image again to recreate its preview.')};
 inkClient.auth.getSession().then(({data})=>applyAuthSession(data.session));
-inkClient.auth.onAuthStateChange((_event,session)=>{if(session?.user?.id!==inkUser?.id)applyAuthSession(session)});
+inkClient.auth.onAuthStateChange((_event,session)=>{queueMicrotask(()=>{if(session?.user?.id!==inkUser?.id)void applyAuthSession(session)})});
 
 </script>
 </body></html>
