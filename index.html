@@ -48,7 +48,9 @@ footer{text-align:center;color:#777;padding:8px 16px 28px;font:italic 12px Georg
 </div>
 <div class="controls"><button id="saveProject" disabled>SAVE SETTINGS</button><button id="loadProject" disabled>LOAD SELECTED</button></div>
 <div class="controls"><button class="primary" id="upgradePremium" disabled>UPGRADE TO PREMIUM · $3.99 / MONTH</button><button id="manageBilling" disabled>MANAGE SUBSCRIPTION</button></div>
-<p class="note">Premium is $3.99/month. Billing is being connected now; paid-only tools and limits must be finalized before launch. Your free local stencil tools remain available, and no subscription charge can happen until live checkout is fully configured.</p>
+<p class="note"><strong>FREE:</strong> unlimited single-image stencil conversion, local PNG export and up to 3 saved cloud projects. <strong>PREMIUM:</strong> unlimited saved projects plus Batch Forge — process up to 25 images locally and download one ZIP of finished stencils. $3.99/month. Your artwork never leaves this device.</p>
+<div class="controls"><div class="field"><label>PREMIUM BATCH FORGE · UP TO 25 IMAGES</label><input id="batchFiles" type="file" accept="image/*" multiple disabled style="width:100%;color:#eee"></div><button id="batchForge" disabled>BATCH FORGE · DOWNLOAD ZIP</button></div>
+<div class="status" id="batchStatus">Sign in with an active Premium account to use Batch Forge.</div>
 <p class="note">Your artwork remains on this device. Saved projects store only project names, notes and stencil settings — not your uploaded image. Account tier: <strong id="planLabel">Free</strong>.</p>
 </section>
 <section class="panel">
@@ -75,7 +77,7 @@ footer{text-align:center;color:#777;padding:8px 16px 28px;font:italic 12px Georg
 </section>
 </main>
 <footer>GRAVEX INKLAB · FREE LOCAL-FIRST STARTER · YOUR ART STAYS ON THIS DEVICE</footer>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>\n<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let source=null, mirrored=false;
@@ -148,11 +150,13 @@ async function applyAuthSession(session){
  inkUser=session?.user||null;
  $('signOut').disabled=!inkUser;$('saveProject').disabled=!inkUser;$('loadProject').disabled=!inkUser;$('upgradePremium').disabled=!inkUser;$('manageBilling').disabled=!inkUser||inkPlan!=='premium';
  $('signIn').disabled=!!inkUser;$('signUp').disabled=!!inkUser;
- if(!inkUser){inkPlan='free';$('planLabel').textContent='Free';accountSay('Local stencil tools work without an account. Sign in to save project settings.');await refreshSavedProjects();return}
+ if(!inkUser){inkPlan='free';$('planLabel').textContent='Free';$('batchFiles').disabled=true;$('batchForge').disabled=true;$('batchStatus').textContent='Sign in with an active Premium account to use Batch Forge.';accountSay('Local stencil tools work without an account. Sign in to save project settings.');await refreshSavedProjects();return}
  const {data:ent}=await inkClient.from('inklab_entitlements').select('plan,status').eq('user_id',inkUser.id).maybeSingle();
  inkPlan=(ent?.plan==='premium'&&['active','trialing'].includes(ent?.status))?'premium':'free';
  $('planLabel').textContent=inkPlan==='premium'?'Premium':'Free';
  $('manageBilling').disabled=inkPlan!=='premium';$('upgradePremium').disabled=inkPlan==='premium';
+ $('batchFiles').disabled=inkPlan!=='premium';$('batchForge').disabled=inkPlan!=='premium';
+ $('batchStatus').textContent=inkPlan==='premium'?'Premium active. Select up to 25 images for a local ZIP export.':'Batch Forge is a Premium feature. Single-image conversion remains free.';
  accountSay('Signed in as '+inkUser.email+'. Your projects are private to your account.');
  await refreshSavedProjects();
 }
@@ -163,7 +167,37 @@ $('signIn').onclick=async()=>{const {data,error}=await inkClient.auth.signInWith
 $('signOut').onclick=async()=>{const {error}=await inkClient.auth.signOut();if(error){accountSay(error.message);return}await applyAuthSession(null)};
 $('saveProject').onclick=async()=>{if(!inkUser){accountSay('Sign in first.');return}const payload={user_id:inkUser.id,name:$('projectName').value.trim()||'Untitled project',notes:$('idea').value,output_style:$('style').value,settings:{threshold:+$('threshold').value,detail:+$('detail').value,invert:$('invert').value}};const {error}=await inkClient.from('inklab_projects').insert(payload);if(error){accountSay('Save failed: '+error.message);return}accountSay('Project settings saved. Your image was not uploaded.');await refreshSavedProjects()};
 $('loadProject').onclick=async()=>{const id=$('savedProjects').value;if(!id){accountSay('Choose a saved project first.');return}const {data,error}=await inkClient.from('inklab_projects').select('*').eq('id',id).single();if(error){accountSay('Load failed: '+error.message);return}$('projectName').value=data.name;$('idea').value=data.notes||'';$('style').value=data.output_style||'edges';$('threshold').value=data.settings?.threshold??145;$('thval').value=$('threshold').value;$('detail').value=data.settings?.detail??2;$('deval').value=$('detail').value;$('invert').value=data.settings?.invert??'no';if(source)forge();accountSay('Project settings loaded. Upload the source image again to recreate its preview.')};
-inkClient.auth.getSession().then(({data})=>applyAuthSession(data.session));
+async function batchStencilBlob(file){
+ const img=await new Promise((resolve,reject)=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};im.onerror=()=>{URL.revokeObjectURL(u);reject(new Error('Could not open '+file.name))};im.src=u});
+ const max=1800,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),hh=Math.max(1,Math.round(img.height*scale));
+ const c=document.createElement('canvas');c.width=w;c.height=hh;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,w,hh);
+ const im=x.getImageData(0,0,w,hh),d=im.data,g=new Uint8ClampedArray(d.length/4),mode=$('style').value,t=+$('threshold').value,inv=$('invert').value==='yes',strength=+$('detail').value;
+ for(let i=0;i<g.length;i++){const k=i*4;g[i]=.299*d[k]+.587*d[k+1]+.114*d[k+2]}
+ for(let y=0;y<hh;y++)for(let xx=0;xx<w;xx++){
+  const i=y*w+xx,k=i*4,v0=g[i];let v;
+  if(mode==='gray')v=v0;else if(mode==='threshold')v=v0<t?0:255;else{
+   let gx=0,gy=0;for(let s=1;s<=strength;s++){gx+=g[y*w+Math.min(w-1,xx+s)]-g[y*w+Math.max(0,xx-s)];gy+=g[Math.min(hh-1,y+s)*w+xx]-g[Math.max(0,y-s)*w+xx]}
+   const edge=Math.min(255,Math.hypot(gx,gy)*.9);v=mode==='detail'?Math.max(0,255-edge*1.8):(edge>(255-t)*.35?0:255);
+  }
+  if(inv)v=255-v;d[k]=d[k+1]=d[k+2]=v;d[k+3]=255;
+ }
+ x.putImageData(im,0,0);return await new Promise(resolve=>c.toBlob(resolve,'image/png'));
+}
+$('batchForge').onclick=async()=>{
+ if(inkPlan!=='premium'||!inkUser){$('batchStatus').textContent='An active Premium account is required.';return}
+ const files=Array.from($('batchFiles').files||[]);
+ if(!files.length){$('batchStatus').textContent='Choose image files first.';return}
+ if(files.length>25){$('batchStatus').textContent='Batch limit is 25 images. Choose fewer files.';return}
+ if(typeof JSZip==='undefined'){$('batchStatus').textContent='ZIP library did not load. Check your connection and retry.';return}
+ $('batchForge').disabled=true;$('batchStatus').textContent='Forging '+files.length+' stencils locally…';
+ try{
+  const zip=new JSZip();let done=0;
+  for(const file of files){const blob=await batchStencilBlob(file);const safe=file.name.replace(/\\.[^.]+$/,'').replace(/[^a-z0-9_-]+/gi,'_')||'stencil';zip.file(safe+'-gravex-stencil.png',blob);done++;$('batchStatus').textContent='Forged '+done+' / '+files.length+'…'}
+  const output=await zip.generateAsync({type:'blob'}),url=URL.createObjectURL(output),a=document.createElement('a');a.href=url;a.download='gravex-inklab-batch-stencils.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);$('batchStatus').textContent='Done. '+done+' stencils exported. Your source images stayed on this device.';
+ }catch(e){$('batchStatus').textContent=e.message||'Batch export failed.'}
+ finally{$('batchForge').disabled=inkPlan!=='premium'}
+};
+\ninkClient.auth.getSession().then(({data})=>applyAuthSession(data.session));
 inkClient.auth.onAuthStateChange((_event,session)=>{queueMicrotask(()=>{if(session?.user?.id!==inkUser?.id)void applyAuthSession(session)})});
 
 </script>
